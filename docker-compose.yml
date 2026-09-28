@@ -1,0 +1,150 @@
+# Project Midas â€” Docker Compose Stack
+# Author: Atharva Kishor Jadhav (AJ)
+version: "3.9"
+
+networks:
+  midas_net:
+    driver: bridge
+    internal: false
+
+volumes:
+  qdrant_storage:
+  outputs:
+  midas_identity_data:
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: midas_v35_redis
+    networks: [midas_net]
+    ports:
+      - "6379:6379"
+    command: redis-server --save "" --appendonly no
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: midas_v35_qdrant
+    networks: [midas_net]
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: "6334"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: midas_v35_api
+    networks: [midas_net]
+    ports:
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      - outputs:/app/outputs
+      - ./api:/app/api
+      - ./core:/app/core
+      - ./task_queue:/app/task_queue
+      - ./sandbox:/app/sandbox
+      - ./frontend:/app/frontend
+      - ./memory:/app/memory
+      - ./models_registry.yaml:/app/models_registry.yaml
+      - ./users.json:/app/users.json:ro
+      - ./tier_b_dispatch.log:/app/tier_b_dispatch.log
+      - midas_identity_data:/app/midas_identity_data
+    environment:
+      - MIDAS_RBAC_DB=/app/midas_identity_data/midas_identity.db
+    depends_on:
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: midas_v35_worker
+    networks: [midas_net]
+    env_file: .env
+    volumes:
+      - outputs:/app/outputs
+      - ./api:/app/api
+      - ./core:/app/core
+      - ./task_queue:/app/task_queue
+      - ./sandbox:/app/sandbox
+      - ./frontend:/app/frontend
+      - ./memory:/app/memory
+      - ./models_registry.yaml:/app/models_registry.yaml
+      - midas_identity_data:/app/midas_identity_data
+    environment:
+      - MIDAS_RBAC_DB=/app/midas_identity_data/midas_identity.db
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: celery -A task_queue.worker.celery_app worker --loglevel=info --concurrency=1
+
+  priority_consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: midas_v35_consumer
+    networks: [midas_net]
+    env_file: .env
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: python -m task_queue.consumer
+
+  dispatcher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: midas_v35_dispatcher
+    networks: [midas_net]
+    ports:
+      - "8001:8001"
+    env_file: .env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - outputs:/app/outputs
+      - ./api:/app/api
+      - ./core:/app/core
+      - ./task_queue:/app/task_queue
+      - ./sandbox:/app/sandbox
+      - ./frontend:/app/frontend
+      - ./memory:/app/memory
+      - ./models_registry.yaml:/app/models_registry.yaml
+      - ./tier_b_dispatch.log:/app/tier_b_dispatch.log
+    command: uvicorn sandbox.dispatcher:app --host 0.0.0.0 --port 8001
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: midas_v35_frontend
+    networks: [midas_net]
+    ports:
+      - "8501:8501"
+    env_file: .env
+    volumes:
+      - outputs:/app/outputs
+      - ./api:/app/api
+      - ./core:/app/core
+      - ./task_queue:/app/task_queue
+      - ./sandbox:/app/sandbox
+      - ./frontend:/app/frontend
+      - ./memory:/app/memory
+      - ./models_registry.yaml:/app/models_registry.yaml
+    depends_on:
+      - api
+    command: python -m http.server 8501 --directory frontend
+
+

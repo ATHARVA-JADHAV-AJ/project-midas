@@ -1,0 +1,23 @@
+models:
+  reasoning:
+    name: "qwen2.5:3b-instruct"
+    vram_gb: 2.8
+    used_for: ["CODE_SANDBOX", "KNOWLEDGE_RAG", "STANDARD_CHAT", "draft_from_extraction"]
+  formatter:
+    name: "llama3.2:latest"
+    vram_gb: 2.0
+    used_for: ["answer_polishing"]
+  vision:
+    name: "moondream:latest"
+    vram_gb: 2.5
+    used_for: ["VISION_EXTRACTION"]
+  embedding:
+    name: "nomic-embed-text:latest"
+    vram_gb: 0
+    device: "cpu"
+    used_for: ["KNOWLEDGE_RAG", "ground_check"]
+  reranker:
+    name: "bge-reranker-base"
+    vram_gb: 0
+    device: "cpu"
+    used_for: ["KNOWLEDGE_RAG"]

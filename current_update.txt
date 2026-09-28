@@ -1,0 +1,29 @@
+Project Midas v4.0 — Implementation Progress
+Principal Architect: Atharva Kishor Jadhav (AJ)
+===============================================
+
+[COMPLETE] Phase 1 / v3.0 Fixes:
+- MemorySaver → SqliteSaver (cross-process checkpoint persistence)
+- Reject endpoint added (/tasks/{task_id}/reject)
+- Draft_from_extraction → ground_check → format_output routing fixed
+- Node targeting verified (execute_code matches graph.add_node)
+- Redis stream maxlen=1000 + EXPIRE 3600s TTL
+- Context bomb defense: 2000 char truncation in draft_from_extraction_node
+- PPTX parser crash defense: try/except fallback to docx
+
+[IN PROGRESS] Phase 2 / v4.0 Enterprise SaaS Upgrade:
+- SQLite RBAC with 5-tier hierarchy (boss/admin/manager/supervisor/worker)
+- Next.js 14 + Tailwind + Framer Motion frontend (replaces Streamlit)
+- Landing Page with animated hero
+- Gemini-style chat interface with HITL modal
+- Admin Portal: user management + live WebSocket monitor feed
+- Markdown output enforcement in format_output node
+- Docker: Streamlit removed, Next.js container added on port 3000
+- API: CORS enabled for localhost:3000
+- Admin router with /admin/* endpoints (tier-gated)
+
+[NEXT] Run:
+  python scripts/init_db.py   -- migrate users.json to SQLite
+  docker compose build        -- rebuild all containers
+  docker compose up -d        -- start stack
+  open http://localhost:3000  -- new frontend

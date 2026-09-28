@@ -1,0 +1,55 @@
+﻿# Project Midas — Python Dependencies
+# Author: Atharva Kishor Jadhav (AJ)
+# ---------------------------------------------------------------
+# All versions pinned to their minimum compatible release.
+# No external API clients — this system is fully air-gapped.
+
+# API layer
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+websockets>=12.0
+python-multipart>=0.0.9         # Required for OAuth2 form parsing
+
+# Auth
+python-jose[cryptography]>=3.3.0
+bcrypt>=4.0.0
+
+# Task queue
+celery>=5.3.6
+redis>=5.0.3
+
+# LangGraph / agent orchestration
+langgraph>=0.1.0
+langchain-community>=0.2.0
+
+# Ollama local model client
+ollama>=0.2.0
+
+# Vector store
+qdrant-client>=1.9.0
+
+# PDF parsing (layout-aware)
+docling>=1.0.0
+
+# Secure code execution (Tier A sandbox)
+RestrictedPython>=7.0
+
+# Docker SDK (Tier B dispatcher sidecar only)
+docker>=7.0.0
+
+# Document generation
+python-docx>=1.1.0
+openpyxl>=3.1.2
+
+# Frontend
+streamlit>=1.35.0
+
+# Utilities
+python-dotenv>=1.0.0
+pydantic>=2.7.0
+httpx>=0.27.0                   # Async HTTP for internal sidecar calls
+fpdf2>=2.7.9
+
+
+fpdf2>=2.7.9
+schemdraw>=0.15

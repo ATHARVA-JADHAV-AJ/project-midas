@@ -1,0 +1,25 @@
+# Project Midas — Sandbox Container Image
+# Author: Atharva Kishor Jadhav (AJ)
+# ---------------------------------------------------------------
+# Minimal Python image used by the Tier B dispatcher for OS-level
+# isolated execution. Contains only the document generation libraries.
+# No network access is configured — docker run passes network_disabled=True.
+
+FROM python:3.11-slim
+
+WORKDIR /sandbox
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Only install what the sandbox actually needs — no FastAPI, no Ollama, no Redis
+RUN pip install --no-cache-dir \
+    python-docx==1.1.0 \
+    openpyxl==3.1.2
+
+# Output files are written to /outputs, which is volume-mounted by the dispatcher
+RUN mkdir -p /outputs
+
+# The dispatcher passes code via `python -c <code>` — no entrypoint needed
+ENV PYTHONUNBUFFERED=1

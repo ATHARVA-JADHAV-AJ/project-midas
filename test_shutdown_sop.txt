@@ -1,0 +1,10 @@
+﻿STANDARD OPERATING PROCEDURE: EMERGENCY SHUTDOWN (UNIT 4)
+
+1. Initial Detection: If the main reactor pressure exceeds 450 PSI, immediately sound the unit alarm.
+2. Operator Assessment: The lead operator must check the primary relief valve. 
+3. Decision - Valve Status: Is the primary relief valve stuck closed?
+   - If YES: Proceed to manual venting (Step 4).
+   - If NO: Proceed to controlled pressure bleed (Step 5).
+4. Manual Venting: Open the secondary bypass valve fully. Then proceed to Step 6.
+5. Controlled Bleed: Throttle the primary valve to 50% open. Then proceed to Step 6.
+6. Final Shutdown: Cut feed pumps and initiate cooling water flood. Shutdown complete.

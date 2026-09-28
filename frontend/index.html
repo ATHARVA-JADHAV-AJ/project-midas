@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PROJECT MIDAS — Sovereign Agentic AI</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+    :root {
+      --bg-deep: #050506; --bg-surface: #0c0c0e; --bg-elevated: #141416; --bg-card: #1a1a1d;
+      --border: rgba(255,255,255,0.06); --border-gold: rgba(212,175,55,0.35);
+      --gold: #d4af37; --gold-bright: #f0d060; --gold-dim: #8a7020;
+      --teal: #2dd4bf; --teal-dim: #0d9488; --text: #e8e6e3; --text-secondary: #a1a09c;
+      --text-muted: #6b6a66; --danger: #f87171; --success: #34d399;
+      --radius: 12px; --radius-lg: 20px; --shadow: 0 8px 32px rgba(0,0,0,0.45);
+      --font: 'IBM Plex Sans', system-ui, sans-serif; --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body { font-family: var(--font); background: var(--bg-deep); color: var(--text); -webkit-font-smoothing: antialiased; }
+
+    /* INTRO VIDEO */
+    #cinematic {
+      position: fixed; inset: 0; z-index: 300;
+      background: #0a0e12; overflow: hidden;
+      transform: scale(1);
+      transition: transform 1.5s cubic-bezier(0.7, 0, 0.2, 1), opacity 1.3s cubic-bezier(0.7, 0, 0.2, 1), filter 1.2s ease-in;
+    }
+    #cinematic.done {
+      opacity: 0; pointer-events: none;
+      transform: scale(3.5); /* Massive zoom forward through the scene */
+      filter: blur(15px) brightness(1.5); /* Speed blur and bright flash */
+    }
+    #cinematic video {
+      width: 100%; height: 100%;
+      object-fit: cover; object-position: center;
+      display: block; background: #0a0e12;
+      transform: scale(1.15); /* Scales the video up further to completely hide the watermark */
+    }
+    .logo-mask {
+      position: absolute; right: 0; bottom: 0;
+      width: 80px; height: 60px;
+      background: linear-gradient(135deg, transparent 15%, #0a0e12 50%);
+      pointer-events: none; z-index: 10;
+    }
+    .intro-vignette {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at center, transparent 35%, rgba(5,5,6,0.5) 100%);
+      pointer-events: none; z-index: 5;
+      opacity: 0; transition: opacity 0.7s ease;
+    }
+    #cinematic.fading .intro-vignette { opacity: 1; }
+
+    /* LANDING */
+    #landing {
+      position: fixed; inset: 0; display: flex; flex-direction: column; z-index: 100;
+      opacity: 0; pointer-events: none;
+      transform: scale(0.92); /* UI starts slightly pushed back */
+      transition: opacity 1.5s cubic-bezier(0.4, 0, 0.2, 1), transform 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+      background: var(--bg-deep);
+    }
+    #landing.ready { opacity: 1; pointer-events: auto; transform: scale(1); /* UI flies forward to meet the camera */ }
+    #landing.hidden { opacity: 0; pointer-events: none; transform: scale(1.02); transition: opacity 0.6s ease, transform 0.6s ease; }
+    #bg-canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; }
+    .landing-content {
+      position: relative; z-index: 2; flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 2rem; text-align: center;
+      max-width: 1100px; margin: 0 auto; width: 100%;
+    }
+    .brand-mark { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; opacity: 0; }
+    #landing.ready .brand-mark { animation: fadeUp 0.9s 0.15s forwards; }
+    .brand-mark .logo {
+      width: 42px; height: 42px; background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+      border-radius: 10px; display: grid; place-items: center;
+      box-shadow: 0 0 24px rgba(212,175,55,0.4); position: relative;
+    }
+    .brand-mark .logo::after {
+      content: ''; position: absolute; inset: -3px; border-radius: 12px;
+      border: 1px solid var(--border-gold); animation: pulseRing 2.5s infinite;
+    }
+    .brand-mark .logo svg { width: 22px; height: 22px; fill: #0a0a0a; }
+    .brand-mark span { font-size: 0.85rem; letter-spacing: 0.28em; text-transform: uppercase; color: var(--gold); font-weight: 500; }
+    h1.hero-title {
+      font-size: clamp(2.6rem, 7vw, 4.4rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05;
+      background: linear-gradient(135deg, #fff 20%, var(--gold-bright) 50%, var(--gold) 80%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      margin-bottom: 1rem; opacity: 0;
+    }
+    #landing.ready h1.hero-title { animation: fadeUp 0.9s 0.3s forwards; }
+    .hero-tagline { font-size: 1.1rem; color: var(--text-secondary); max-width: 560px; line-height: 1.55; margin-bottom: 2.4rem; opacity: 0; }
+    #landing.ready .hero-tagline { animation: fadeUp 0.9s 0.45s forwards; }
+    .hero-tagline strong { color: var(--teal); font-weight: 500; }
+    .feature-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem; width: 100%; max-width: 900px; margin-bottom: 2.6rem; opacity: 0;
+    }
+    #landing.ready .feature-grid { animation: fadeUp 0.9s 0.6s forwards; }
+    .feature-card {
+      background: rgba(20,20,22,0.75); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 1.2rem 1.1rem; text-align: left; backdrop-filter: blur(12px);
+      transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s; position: relative; overflow: hidden;
+    }
+    .feature-card:hover {
+      border-color: var(--border-gold); transform: translateY(-3px);
+      box-shadow: 0 12px 28px rgba(0,0,0,0.4), 0 0 20px rgba(212,175,55,0.08);
+    }
+    .feature-card .icon {
+      width: 36px; height: 36px; border-radius: 8px; background: rgba(212,175,55,0.12);
+      display: grid; place-items: center; margin-bottom: 0.7rem; color: var(--gold);
+    }
+    .feature-card h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--text); }
+    .feature-card p { font-size: 0.8rem; color: var(--text-muted); line-height: 1.45; }
+    .cta-row { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; opacity: 0; }
+    #landing.ready .cta-row { animation: fadeUp 0.9s 0.75s forwards; }
+    .btn {
+      font-family: var(--font); font-size: 0.95rem; font-weight: 600; padding: 0.85rem 1.8rem;
+      border-radius: 999px; border: none; cursor: pointer; transition: all 0.25s;
+      display: inline-flex; align-items: center; gap: 0.5rem;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--gold-bright), var(--gold)); color: #0a0a0a;
+      box-shadow: 0 4px 24px rgba(212,175,55,0.35);
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(212,175,55,0.5); }
+    .btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
+    .btn-ghost:hover { border-color: var(--border-gold); color: var(--gold); }
+    .sovereignty-badge {
+      position: absolute; bottom: 1.4rem; left: 50%; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--teal);
+      letter-spacing: 0.08em; text-transform: uppercase; opacity: 0; z-index: 2;
+    }
+    #landing.ready .sovereignty-badge { animation: fadeUp 0.9s 0.9s forwards; }
+    .sovereignty-badge .dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--teal);
+      box-shadow: 0 0 10px var(--teal); animation: blink 1.8s infinite;
+    }
+
+    /* AUTH */
+    #auth-modal {
+      position: fixed; inset: 0; background: rgba(5,5,6,0.88); backdrop-filter: blur(16px);
+      display: none; align-items: center; justify-content: center; z-index: 200; opacity: 0; transition: opacity 0.3s;
+    }
+    #auth-modal.open { display: flex; opacity: 1; }
+    .auth-card {
+      background: var(--bg-elevated); border: 1px solid var(--border-gold); border-radius: var(--radius-lg);
+      padding: 2.2rem; width: min(400px, 92vw);
+      box-shadow: var(--shadow), 0 0 40px rgba(212,175,55,0.1);
+      transform: translateY(16px); transition: transform 0.3s;
+    }
+    #auth-modal.open .auth-card { transform: translateY(0); }
+    .auth-card h2 {
+      font-size: 1.35rem; margin-bottom: 0.3rem;
+      background: linear-gradient(90deg, #fff, var(--gold));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .auth-card .sub { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem; }
+    .form-group { margin-bottom: 1rem; text-align: left; }
+    .form-group label { display: block; font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 0.35rem; }
+    .form-group input {
+      width: 100%; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px;
+      padding: 0.75rem 1rem; color: var(--text); font-family: var(--font); font-size: 0.95rem; outline: none;
+    }
+    .form-group input:focus { border-color: var(--gold); }
+    .auth-error { color: var(--danger); font-size: 0.8rem; margin-bottom: 0.75rem; display: none; }
+    .auth-actions { display: flex; gap: 0.75rem; margin-top: 1.3rem; }
+    .auth-actions .btn { flex: 1; justify-content: center; }
+
+    /* APP */
+    #app { position: fixed; inset: 0; display: none; flex-direction: column; background: var(--bg-deep); opacity: 0; transition: opacity 0.45s; }
+    #app.visible { display: flex; opacity: 1; }
+    .topbar {
+      height: 56px; border-bottom: 1px solid var(--border); display: flex; align-items: center;
+      padding: 0 1.25rem; background: rgba(12,12,14,0.92); backdrop-filter: blur(12px); flex-shrink: 0;
+    }
+    .topbar .logo-sm {
+      width: 28px; height: 28px; background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+      border-radius: 7px; display: grid; place-items: center; margin-right: 0.75rem;
+    }
+    .topbar .logo-sm svg { width: 14px; height: 14px; fill: #0a0a0a; }
+    .topbar .title { font-weight: 600; font-size: 0.95rem; letter-spacing: 0.04em; }
+    .topbar .title span { color: var(--gold); }
+    .topbar-spacer { flex: 1; }
+    .status-pill {
+      display: flex; align-items: center; gap: 0.4rem; font-size: 0.72rem; color: var(--teal);
+      background: rgba(45,212,191,0.08); border: 1px solid rgba(45,212,191,0.25);
+      padding: 0.3rem 0.7rem; border-radius: 999px; margin-right: 1rem;
+    }
+    .status-pill .dot {
+      width: 6px; height: 6px; border-radius: 50%; background: var(--teal);
+      box-shadow: 0 0 8px var(--teal); animation: blink 1.6s infinite;
+    }
+    .user-chip { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-secondary); cursor: pointer; }
+    .user-chip .avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--gold-dim), #5a4a10);
+      display: grid; place-items: center; font-size: 0.7rem; font-weight: 600; color: #fff;
+    }
+    .main-layout { flex: 1; display: grid; grid-template-columns: 240px 1fr 280px; overflow: hidden; min-height: 0; }
+    .sidebar {
+      border-right: 1px solid var(--border); background: var(--bg-surface);
+      display: flex; flex-direction: column; padding: 1rem 0.75rem; min-height: 0;
+    }
+    .sidebar .new-chat {
+      width: 100%; background: transparent; border: 1px dashed var(--border); color: var(--text-secondary);
+      padding: 0.65rem; border-radius: 8px; font-size: 0.85rem; cursor: pointer; margin-bottom: 1rem; transition: all 0.2s;
+    }
+    .sidebar .new-chat:hover { border-color: var(--gold); color: var(--gold); background: rgba(212,175,55,0.05); }
+    .chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.25rem; }
+    .chat-item {
+      padding: 0.6rem 0.75rem; border-radius: 8px; font-size: 0.82rem; color: var(--text-secondary);
+      cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .chat-item:hover, .chat-item.active { background: var(--bg-elevated); color: var(--text); }
+    .chat-item.active { border-left: 2px solid var(--gold); }
+    .chat-area { display: flex; flex-direction: column; background: var(--bg-deep); min-height: 0; }
+    .messages { flex: 1; overflow-y: auto; padding: 1.5rem 1.75rem; display: flex; flex-direction: column; gap: 1.2rem; min-height: 0; }
+    .msg { max-width: 780px; width: 100%; margin: 0 auto; display: flex; gap: 0.85rem; animation: msgIn 0.35s ease; }
+    .msg.user { flex-direction: row-reverse; }
+    .msg .avatar-sm {
+      width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+      display: grid; place-items: center; font-size: 0.75rem; font-weight: 600;
+    }
+    .msg.assistant .avatar-sm { background: linear-gradient(135deg, var(--gold), var(--gold-dim)); color: #0a0a0a; }
+    .msg.user .avatar-sm { background: var(--bg-card); color: var(--text-secondary); border: 1px solid var(--border); }
+    .msg .bubble {
+      background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px;
+      padding: 0.9rem 1.15rem; font-size: 0.92rem; line-height: 1.55; color: var(--text);
+    }
+    .msg.user .bubble { background: rgba(212,175,55,0.1); border-color: rgba(212,175,55,0.25); }
+    .msg .bubble p { margin-bottom: 0.5rem; } .msg .bubble p:last-child { margin-bottom: 0; }
+    .msg .bubble code { font-family: var(--mono); font-size: 0.82rem; background: rgba(0,0,0,0.35); padding: 0.15rem 0.4rem; border-radius: 4px; }
+    .input-bar { padding: 1rem 1.5rem 1.3rem; border-top: 1px solid var(--border); background: rgba(12,12,14,0.9); flex-shrink: 0; }
+    .input-wrap {
+      max-width: 780px; margin: 0 auto; background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 16px; display: flex; align-items: flex-end; padding: 0.55rem 0.7rem;
+    }
+    .input-wrap:focus-within { border-color: var(--border-gold); box-shadow: 0 0 0 3px rgba(212,175,55,0.1); }
+    .input-wrap textarea {
+      flex: 1; background: transparent; border: none; color: var(--text); font-family: var(--font);
+      font-size: 0.95rem; resize: none; max-height: 140px; padding: 0.45rem 0.5rem; outline: none; line-height: 1.45;
+    }
+    .input-actions { display: flex; gap: 0.3rem; align-items: center; }
+    .icon-btn {
+      width: 36px; height: 36px; border-radius: 10px; border: none; background: transparent;
+      color: var(--text-muted); cursor: pointer; display: grid; place-items: center;
+    }
+    .icon-btn:hover { background: rgba(255,255,255,0.06); color: var(--gold); }
+    .send-btn {
+      width: 36px; height: 36px; border-radius: 10px; border: none;
+      background: linear-gradient(135deg, var(--gold-bright), var(--gold)); color: #0a0a0a;
+      cursor: pointer; display: grid; place-items: center;
+    }
+    .send-btn:hover { transform: scale(1.05); }
+    .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    .telemetry {
+      border-left: 1px solid var(--border); background: var(--bg-surface); padding: 1.1rem;
+      display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; min-height: 0;
+    }
+    .tele-section { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; }
+    .tele-section h4 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 0.7rem; }
+    .vram-bar-wrap { height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden; margin-bottom: 0.5rem; }
+    .vram-bar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--teal-dim), var(--gold)); border-radius: 4px; transition: width 0.8s ease; }
+    .vram-stats { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-secondary); font-family: var(--mono); }
+    .model-chip {
+      display: inline-flex; align-items: center; gap: 0.4rem; background: rgba(212,175,55,0.1);
+      border: 1px solid rgba(212,175,55,0.3); padding: 0.35rem 0.7rem; border-radius: 6px;
+      font-size: 0.78rem; font-family: var(--mono); color: var(--gold); margin-top: 0.5rem;
+    }
+    .queue-item { display: flex; justify-content: space-between; font-size: 0.8rem; padding: 0.3rem 0; color: var(--text-secondary); }
+    .queue-item .prio { font-family: var(--mono); color: var(--teal); }
+    .net-status { font-size: 0.85rem; color: var(--teal); font-weight: 500; }
+    .hint { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.35rem; line-height: 1.4; }
+
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes pulseRing { 0%, 100% { opacity: 0.4; transform: scale(1); } 50% { opacity: 0.8; transform: scale(1.08); } }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+    @keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @media (max-width: 980px) { .main-layout { grid-template-columns: 200px 1fr; } .telemetry { display: none; } }
+    @media (max-width: 700px) { .main-layout { grid-template-columns: 1fr; } .sidebar { display: none; } .feature-grid { grid-template-columns: 1fr 1fr; } }
+  </style>
+</head>
+<body>
+  <div id="cinematic">
+    <video id="intro-video" playsinline webkit-playsinline muted autoplay preload="auto" poster="intro_poster.jpg">
+      <source src="midas_intro.mp4" type="video/mp4" />
+    </video>
+    <div class="logo-mask" aria-hidden="true"></div>
+    <div class="intro-vignette"></div>
+  </div>
+
+  <div id="landing">
+    <canvas id="bg-canvas"></canvas>
+    <div class="landing-content">
+      <div class="brand-mark">
+        <div class="logo"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+        <span>SIH26117 · MRPL</span>
+      </div>
+      <h1 class="hero-title">PROJECT MIDAS</h1>
+      <p class="hero-tagline">
+        Sovereign On-Premise Agentic AI Workbench.<br>
+        <strong>Nothing leaves the building.</strong> Runs fully local — even on a 6 GB VRAM laptop.
+      </p>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="icon"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+          <h3>Air-Gapped by Design</h3>
+          <p>Zero cloud inference. Pure local Ollama. No data ever leaves.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+          <h3>Runs on 6 GB VRAM</h3>
+          <p>VRAM-aware swap — only one generative model loaded at a time.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg></div>
+          <h3>Org-Grounded RAG</h3>
+          <p>Hybrid search over your own documents. Answers stay grounded.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></div>
+          <h3>Secure Code Sandbox</h3>
+          <p>RestrictedPython + HITL approval. Your code never leaves.</p>
+        </div>
+      </div>
+      <div class="cta-row">
+        <button class="btn btn-primary" id="open-auth" type="button">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
+          Sign In to Console
+        </button>
+      </div>
+    </div>
+    <div class="sovereignty-badge"><span class="dot"></span> Network Sovereignty Active · Local Only</div>
+  </div>
+
+  <div id="auth-modal">
+    <div class="auth-card">
+      <h2>Console Access</h2>
+      <p class="sub">Demo: <strong style="color:var(--gold)">admin</strong> / <strong style="color:var(--gold)">midas2026</strong></p>
+      <div class="auth-error" id="auth-error">Invalid credentials</div>
+      <div class="form-group"><label>Username</label><input type="text" id="auth-user" value="admin" autocomplete="username" /></div>
+      <div class="form-group"><label>Password</label><input type="password" id="auth-pass" value="midas2026" autocomplete="current-password" /></div>
+      <div class="auth-actions">
+        <button class="btn btn-ghost" id="auth-cancel" type="button">Cancel</button>
+        <button class="btn btn-primary" id="auth-submit" type="button">Enter</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="app">
+    <header class="topbar">
+      <div class="logo-sm"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+      <div class="title">MIDAS <span>Console</span></div>
+      <div class="topbar-spacer"></div>
+      <div class="status-pill"><span class="dot"></span> AIR-GAPPED</div>
+      <div class="user-chip" id="logout-btn" title="Sign out">
+        <div class="avatar" id="user-avatar">A</div>
+        <span id="user-name">admin</span>
+      </div>
+    </header>
+    <div class="main-layout">
+      <aside class="sidebar">
+        <button class="new-chat" id="new-chat-btn" type="button">+ New conversation</button>
+        <div class="chat-list">
+          <div class="chat-item active">Welcome &amp; overview</div>
+          <div class="chat-item">Spreadsheet analysis</div>
+          <div class="chat-item">Vision extraction</div>
+        </div>
+      </aside>
+      <main class="chat-area">
+        <div class="messages" id="messages"></div>
+        <div class="input-bar">
+          <div class="input-wrap">
+            <textarea id="prompt-input" rows="1" placeholder="Ask MIDAS anything…"></textarea>
+            <div class="input-actions">
+              <button class="icon-btn" id="attach-btn" type="button" title="Attach"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
+              <button class="send-btn" id="send-btn" type="button"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </main>
+      <aside class="telemetry">
+        <div class="tele-section">
+          <h4>VRAM Manager</h4>
+          <div class="vram-bar-wrap"><div class="vram-bar" id="vram-bar"></div></div>
+          <div class="vram-stats"><span id="vram-used">0.0 GB</span><span id="vram-total">/ 0.0 GB</span></div>
+          <div class="model-chip" id="model-chip"><span>●</span> <span id="model-name">—</span></div>
+          <div class="hint" id="gpu-name" style="margin-top:0.4rem;"></div>
+        </div>
+        <div class="tele-section">
+          <h4>Ollama</h4>
+          <div class="queue-item"><span>Status</span><span class="prio" id="ollama-status" style="color:var(--text-muted)">checking…</span></div>
+        </div>
+        <div class="tele-section">
+          <h4>Network</h4>
+          <div class="net-status">🔒 LOCAL ONLY</div>
+          <div class="hint">No outbound model calls.</div>
+        </div>
+        <div class="tele-section">
+          <h4>Pipeline</h4>
+          <div class="queue-item"><span>Classifier</span><span class="prio" id="pipe-classifier" style="color:var(--success)">ready</span></div>
+          <div class="queue-item"><span>File Inspector</span><span class="prio" id="pipe-file" style="color:var(--success)">ready</span></div>
+          <div class="queue-item"><span>Ground Check</span><span class="prio" id="pipe-ground" style="color:var(--success)">ready</span></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <input type="file" id="file-upload" style="display:none" />
+
+  <script>
+  (function () {
+    var API_URL = 'http://localhost:8000';
+
+    // ====== INTRO VIDEO ======
+    var cinematic = document.getElementById('cinematic');
+    var introVideo = document.getElementById('intro-video');
+    var landing = document.getElementById('landing');
+    var introFinished = false;
+
+    function finishIntro() {
+      if (introFinished) return;
+      introFinished = true;
+      cinematic.classList.add('fading');
+      landing.classList.add('ready');
+      setTimeout(function () {
+        cinematic.classList.add('done');
+        setTimeout(function () {
+          cinematic.style.display = 'none';
+          try { introVideo.pause(); } catch (e) {}
+          initParticles(); animate();
+        }, 1200);
+      }, 150);
+    }
+
+    introVideo.addEventListener('ended', finishIntro);
+    introVideo.addEventListener('timeupdate', function () {
+      if (introVideo.currentTime >= 2.7 && !introFinished) finishIntro();
+    });
+    introVideo.addEventListener('error', function () {
+      setTimeout(finishIntro, 400);
+    });
+    introVideo.muted = true; introVideo.defaultMuted = true; introVideo.volume = 0;
+
+    function tryPlay() {
+      var p = introVideo.play();
+      if (p && p.catch) {
+        p.catch(function () {
+          setTimeout(function () { introVideo.play().catch(function () {}); }, 300);
+          setTimeout(finishIntro, 3200);
+        });
+      }
+    }
+    if (introVideo.readyState >= 2) tryPlay();
+    else {
+      introVideo.addEventListener('loadeddata', tryPlay, { once: true });
+      introVideo.addEventListener('canplay', tryPlay, { once: true });
+    }
+    setTimeout(function () { if (!introFinished) finishIntro(); }, 4500);
+
+    // ====== PARTICLES ======
+    var canvas = document.getElementById('bg-canvas');
+    var ctx = canvas.getContext('2d');
+    var particles = [], animId;
+    var GOLD = '212,175,55', TEAL = '45,212,191';
+    function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    window.addEventListener('resize', resize); resize();
+    function Particle() {
+      this.reset = function (init) {
+        this.x = Math.random() * canvas.width; this.y = Math.random() * canvas.height;
+        this.vx = (Math.random() - 0.5) * 0.45; this.vy = (Math.random() - 0.5) * 0.45;
+        this.size = Math.random() * 1.8 + 0.6; this.life = init ? Math.random() : 0;
+        this.maxLife = 0.6 + Math.random() * 0.4; this.color = Math.random() > 0.7 ? TEAL : GOLD;
+      };
+      this.update = function () {
+        this.x += this.vx; this.y += this.vy; this.life += 0.003;
+        if (this.life > this.maxLife || this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) this.reset();
+      };
+      this.draw = function () {
+        var a = Math.sin(this.life * Math.PI) * 0.55;
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(' + this.color + ',' + a + ')'; ctx.fill();
+      };
+      this.reset(true);
+    }
+    function initParticles() {
+      var n = Math.min(90, Math.floor((canvas.width * canvas.height) / 18000));
+      particles = [];
+      for (var i = 0; i < n; i++) particles.push(new Particle());
+    }
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      var g = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 0, canvas.width / 2, canvas.height / 2, canvas.width * 0.6);
+      g.addColorStop(0, 'rgba(212,175,55,0.03)'); g.addColorStop(1, 'transparent');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      for (var i = 0; i < particles.length; i++) { particles[i].update(); particles[i].draw(); }
+      for (var i = 0; i < particles.length; i++) {
+        for (var j = i + 1; j < particles.length; j++) {
+          var a = particles[i], b = particles[j];
+          var dx = a.x - b.x, dy = a.y - b.y, d = Math.sqrt(dx * dx + dy * dy);
+          if (d < 130) {
+            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+            ctx.strokeStyle = 'rgba(' + GOLD + ',' + ((1 - d / 130) * 0.12) + ')';
+            ctx.lineWidth = 0.6; ctx.stroke();
+          }
+        }
+      }
+      animId = requestAnimationFrame(animate);
+    }
+
+    // ====== AUTH ======
+    var authModal = document.getElementById('auth-modal');
+    var app = document.getElementById('app');
+    var currentToken = null;
+    var statsInterval = null;
+
+    document.getElementById('open-auth').addEventListener('click', function () {
+      authModal.classList.add('open');
+      document.getElementById('auth-user').focus();
+    });
+    document.getElementById('auth-cancel').addEventListener('click', function () { authModal.classList.remove('open'); });
+    authModal.addEventListener('click', function (e) { if (e.target === authModal) authModal.classList.remove('open'); });
+
+    function enterApp(username) {
+      authModal.classList.remove('open');
+      landing.classList.add('hidden');
+      setTimeout(function () {
+        landing.style.display = 'none';
+        if (animId) cancelAnimationFrame(animId);
+        app.classList.add('visible');
+        document.getElementById('user-name').textContent = username;
+        document.getElementById('user-avatar').textContent = username.charAt(0).toUpperCase();
+        seedWelcome();
+        // Start live telemetry polling
+        fetchStats();
+        statsInterval = setInterval(fetchStats, 3000);
+      }, 600);
+    }
+
+    async function tryLogin() {
+      var u = document.getElementById('auth-user').value.trim();
+      var p = document.getElementById('auth-pass').value;
+      try {
+        var res = await fetch(API_URL + '/auth/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: u, password: p })
+        });
+        if (res.ok) {
+          var data = await res.json();
+          currentToken = data.access_token;
+          document.getElementById('auth-error').style.display = 'none';
+          enterApp(u);
+        } else {
+          document.getElementById('auth-error').style.display = 'block';
+          document.getElementById('auth-error').textContent = 'Invalid credentials';
+        }
+      } catch (err) {
+        // Fallback: allow local demo login if API unreachable
+        var USERS = { admin: 'midas2026', analyst: 'analyst', demo: 'demo' };
+        if (USERS[u.toLowerCase()] === p) {
+          currentToken = 'bypass';
+          document.getElementById('auth-error').style.display = 'none';
+          enterApp(u);
+        } else {
+          document.getElementById('auth-error').style.display = 'block';
+          document.getElementById('auth-error').textContent = 'API unreachable — check Docker';
+        }
+      }
+    }
+    document.getElementById('auth-submit').addEventListener('click', tryLogin);
+    document.getElementById('auth-pass').addEventListener('keydown', function (e) { if (e.key === 'Enter') tryLogin(); });
+
+    document.getElementById('logout-btn').addEventListener('click', function () {
+      app.classList.remove('visible');
+      if (statsInterval) { clearInterval(statsInterval); statsInterval = null; }
+      currentToken = null;
+      setTimeout(function () {
+        app.style.display = 'none';
+        landing.style.display = 'flex';
+        landing.classList.remove('hidden');
+        messagesEl.innerHTML = '';
+        initParticles(); animate();
+      }, 350);
+    });
+
+    // ====== LIVE TELEMETRY ======
+    async function fetchStats() {
+      try {
+        var res = await fetch(API_URL + '/system/stats');
+        if (!res.ok) return;
+        var d = await res.json();
+        // GPU
+        var bar = document.getElementById('vram-bar');
+        var usedEl = document.getElementById('vram-used');
+        var totalEl = document.getElementById('vram-total');
+        var gpuEl = document.getElementById('gpu-name');
+        bar.style.width = d.gpu.vram_pct + '%';
+        usedEl.textContent = d.gpu.vram_used_gb + ' GB';
+        totalEl.textContent = '/ ' + d.gpu.vram_total_gb + ' GB';
+        gpuEl.textContent = d.gpu.name !== 'N/A' ? d.gpu.name : '';
+        // Ollama
+        var ollamaEl = document.getElementById('ollama-status');
+        var modelEl = document.getElementById('model-name');
+        if (d.ollama.online) {
+          ollamaEl.textContent = 'online';
+          ollamaEl.style.color = 'var(--success)';
+          modelEl.textContent = d.ollama.loaded_model || 'idle (none loaded)';
+        } else {
+          ollamaEl.textContent = 'offline';
+          ollamaEl.style.color = 'var(--danger)';
+          modelEl.textContent = '—';
+        }
+        // Pipeline
+        document.getElementById('pipe-classifier').textContent = d.pipeline.classifier;
+        document.getElementById('pipe-file').textContent = d.pipeline.file_inspector;
+        document.getElementById('pipe-ground').textContent = d.pipeline.ground_check;
+      } catch (e) {
+        // API unreachable — show stale
+      }
+    }
+
+    // ====== CHAT ======
+    var messagesEl = document.getElementById('messages');
+    var promptInput = document.getElementById('prompt-input');
+    var sendBtn = document.getElementById('send-btn');
+    var fileInput = document.getElementById('file-upload');
+    var selectedFile = null;
+
+    function seedWelcome() {
+      addMessage('assistant', 'Welcome to **PROJECT MIDAS**.\n\nSovereign on-premise agentic workbench. Every inference stays on this machine.\n\n• Spreadsheet analysis & structured reports\n• Vision extraction from scans / PDFs\n• RAG over your own documents\n• Restricted code sandbox with HITL\n\nRuns fully local — even on a 6 GB VRAM system.');
+    }
+
+    function addMessage(role, text) {
+      var div = document.createElement('div');
+      div.className = 'msg ' + role;
+      var av = role === 'assistant' ? 'M' : 'U';
+      var html = text
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\n\n/g, '</p><p>')
+        .replace(/\n/g, '<br>');
+      div.innerHTML = '<div class="avatar-sm">' + av + '</div><div class="bubble"><p>' + html + '</p></div>';
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function showTyping(show) {
+      var el = document.getElementById('typing-indicator');
+      if (show) {
+        if (!el) {
+          el = document.createElement('div');
+          el.id = 'typing-indicator';
+          el.className = 'msg assistant';
+          el.innerHTML = '<div class="avatar-sm">M</div><div class="bubble"><p style="color:var(--text-muted)">⏳ Thinking locally…</p></div>';
+          messagesEl.appendChild(el);
+        }
+      } else if (el) el.remove();
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    // File attach
+    document.getElementById('attach-btn').addEventListener('click', function () { fileInput.click(); });
+    fileInput.addEventListener('change', function (e) {
+      if (e.target.files.length > 0) {
+        selectedFile = e.target.files[0];
+        addMessage('user', '[Attached: ' + selectedFile.name + ']');
+      }
+    });
+
+    // Send to real API
+    async function send() {
+      var text = promptInput.value.trim();
+      if (!text && !selectedFile) return;
+
+      addMessage('user', text);
+      promptInput.value = '';
+      promptInput.style.height = 'auto';
+      sendBtn.disabled = true;
+      showTyping(true);
+
+      var formData = new FormData();
+      formData.append('prompt', text || 'Analyze this file');
+      if (selectedFile) {
+        formData.append('file', selectedFile);
+        selectedFile = null;
+        fileInput.value = '';
+      }
+
+      var token = currentToken || 'bypass';
+
+      try {
+        var res = await fetch(API_URL + '/tasks', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token },
+          body: formData
+        });
+
+        if (!res.ok) {
+          showTyping(false);
+          addMessage('assistant', '**Error:** Task submission failed (HTTP ' + res.status + ')');
+          sendBtn.disabled = false;
+          return;
+        }
+
+        var data = await res.json();
+        var taskId = data.task_id;
+
+        // Add to sidebar
+        var chatList = document.querySelector('.chat-list');
+        var item = document.createElement('div');
+        item.className = 'chat-item';
+        item.textContent = text.substring(0, 30) + (text.length > 30 ? '…' : '');
+        chatList.prepend(item);
+
+        // Poll for result
+        var pollCount = 0;
+        var maxPolls = 120; // 4 minutes max
+        var pollInterval = setInterval(async function () {
+          pollCount++;
+          if (pollCount > maxPolls) {
+            clearInterval(pollInterval);
+            showTyping(false);
+            addMessage('assistant', '**Timeout:** Task is still processing. Check backend logs.');
+            sendBtn.disabled = false;
+            return;
+          }
+          try {
+            var pollRes = await fetch(API_URL + '/tasks/' + taskId, {
+              headers: { 'Authorization': 'Bearer ' + token }
+            });
+            var pollData = await pollRes.json();
+
+            if (pollData.status === 'done') {
+              clearInterval(pollInterval);
+              showTyping(false);
+              addMessage('assistant', pollData.result || 'Task completed.');
+              sendBtn.disabled = false;
+              fetchStats(); // Refresh telemetry
+            } else if (pollData.status === 'failed') {
+              clearInterval(pollInterval);
+              showTyping(false);
+              addMessage('assistant', '**Error:** ' + (pollData.error || 'Task failed.'));
+              sendBtn.disabled = false;
+            } else if (pollData.status === 'waiting_approval') {
+              clearInterval(pollInterval);
+              showTyping(false);
+              addMessage('assistant', '⚠️ **Human-in-the-Loop approval required.** The agent generated code that needs authorization before sandbox execution.\n\nUse the Command Center or API to approve.');
+              sendBtn.disabled = false;
+            }
+            // else: still running, keep polling
+          } catch (e) {
+            // Transient error, keep polling
+          }
+        }, 2000);
+
+      } catch (err) {
+        showTyping(false);
+        addMessage('assistant', '**Network Error:** ' + err.message + '\n\nMake sure Docker containers are running.');
+        sendBtn.disabled = false;
+      }
+    }
+
+    sendBtn.addEventListener('click', send);
+    promptInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+    });
+    promptInput.addEventListener('input', function () {
+      promptInput.style.height = 'auto';
+      promptInput.style.height = Math.min(promptInput.scrollHeight, 140) + 'px';
+    });
+    document.getElementById('new-chat-btn').addEventListener('click', function () {
+      messagesEl.innerHTML = '';
+      seedWelcome();
+    });
+  })();
+  </script>
+</body>
+</html>
+
