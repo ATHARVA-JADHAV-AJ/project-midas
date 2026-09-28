@@ -186,11 +186,15 @@ def reason_and_code(state: MidasState) -> MidasState:
 
     full_response = ""
     try:
+        messages = state.get("messages", [])[:-1] # All but the latest user prompt
+        # We append the full reasoning prompt (with system instructions and context) as the final user message
+        messages.append({"role": "user", "content": prompt_text})
+        
         stream = client.chat(
             model=MODEL_REASONING,
-            messages=[{"role": "user", "content": prompt_text}],
+            messages=messages,
             stream=True,
-            options={"temperature": 0.2, "num_predict": 2048},
+            options={"temperature": 0.2, "num_predict": 8192},
         )
         for chunk in stream:
             token = chunk["message"]["content"]
@@ -272,7 +276,7 @@ def vision_extract(state: MidasState) -> MidasState:
         response = client.chat(
             model=MODEL_VISION,
             messages=[msg],
-            options={"temperature": 0.0, "num_predict": 1024},
+            options={"temperature": 0.0, "num_predict": 4096},
         )
         extracted = response["message"]["content"]
     except Exception as e:
@@ -316,7 +320,7 @@ def draft_from_extraction_node(state: MidasState) -> MidasState:
                 "role": "user",
                 "content": f"Draft a formal document based on these extracted findings:\n{context}\n\nOriginal request: {state['prompt']}"
             }],
-            options={"temperature": 0.2, "num_predict": 2048},
+            options={"temperature": 0.2, "num_predict": 8192},
         )
         draft = response["message"]["content"]
     except Exception as e:

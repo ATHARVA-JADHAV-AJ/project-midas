@@ -13,9 +13,11 @@ class TokenResponse(BaseModel):
 class TaskRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     prompt: str
+    conversation_id: str | None = None
 
 class TaskResponse(BaseModel):
     task_id: str
+    conversation_id: str
     status: str
 
 class TaskStatusResponse(BaseModel):

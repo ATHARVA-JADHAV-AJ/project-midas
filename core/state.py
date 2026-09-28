@@ -5,6 +5,8 @@ from typing import TypedDict, Optional, Literal, List
 
 class MidasState(TypedDict):
     task_id: str
+    conversation_id: str
+    messages: List[dict]        # Chat history: [{"role": "user"|"assistant", "content": "..."}]
     prompt: str
     user_id_hash: str          # SHA-256 of user ID — passed through for audit logging
     intent: Optional[Literal["vision", "math", "document", "chat"]]

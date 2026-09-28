@@ -37,19 +37,43 @@ def run_agent_task(self, task_id: str, prompt: str) -> str:
     # Pull metadata from Redis — includes user identity stored by enqueue()
     task_meta = get_task_status(task_id)
     role = task_meta.get("role", "default") if task_meta else "default"
-    # Hash the actual user identity (sub claim from JWT), not the role.
-    # This produces a unique hash per user for the audit trail.
     user_identity = task_meta.get("user", "unknown") if task_meta else "unknown"
     user_id_hash = hashlib.sha256(user_identity.encode()).hexdigest()
+    
+    # Retrieve conversation_id (defaults to task_id if not present for backwards compat)
+    conversation_id = task_meta.get("conversation_id", task_id) if task_meta else task_id
 
-    # Parse file metadata from the prompt tag injected by the API router
+    # Fetch conversation history
+    import json
+    from task_queue.queue_manager import redis_client
+    history = []
+    history_json = redis_client.get(f"midas:conv:{conversation_id}")
+    if history_json:
+        history = json.loads(history_json)
+        
+    # Clean the prompt of metadata tags before adding to history
+    clean_prompt = prompt
     import re as _re
-    _file_match = _re.search(r"\[File Attached: (.*?) \| type: (\w+)\]", prompt)
-    _file_path = _file_match.group(1) if _file_match else None
-    _file_type = _file_match.group(2) if _file_match else None
+    _file_match = _re.search(r"\[File Attached: (.*?) \| type: (\w+)\]\n\n(.*)", prompt, _re.DOTALL)
+    _file_path, _file_type = None, None
+    if _file_match:
+        _file_path = _file_match.group(1)
+        _file_type = _file_match.group(2)
+        clean_prompt = _file_match.group(3)
+    elif prompt.startswith("[File Attached:"):
+        # Fallback if no newline
+        _file_match_simple = _re.search(r"\[File Attached: (.*?) \| type: (\w+)\]", prompt)
+        if _file_match_simple:
+            _file_path = _file_match_simple.group(1)
+            _file_type = _file_match_simple.group(2)
+
+    history.append({"role": "user", "content": clean_prompt})
+    redis_client.set(f"midas:conv:{conversation_id}", json.dumps(history), ex=86400) # 1 day TTL
 
     initial_state: MidasState = {
         "task_id": task_id,
+        "conversation_id": conversation_id,
+        "messages": history,
         "prompt": prompt,
         "user_id_hash": user_id_hash,
         "intent": None,
@@ -71,13 +95,12 @@ def run_agent_task(self, task_id: str, prompt: str) -> str:
     }
 
     try:
-        config = {"configurable": {"thread_id": task_id}}
+        config = {"configurable": {"thread_id": conversation_id}}
         final_state = MIDAS_GRAPH.invoke(initial_state, config=config)
         state_snapshot = MIDAS_GRAPH.get_state(config)
         
         if state_snapshot.next:
             # Paused at an interrupt_before node
-            # The current state holds the generated code
             generated_code = final_state.get("generated_code", "")
             set_task_status(task_id, "waiting_approval", result=generated_code)
             logger.info(f"[{task_id}] Task paused for HITL approval")
@@ -85,19 +108,20 @@ def run_agent_task(self, task_id: str, prompt: str) -> str:
 
         output_path = final_state.get("final_output_path")
         execution_result = final_state.get("execution_result", "")
-        is_grounded = final_state.get("is_grounded", True)
-
-        # Build the result summary for the user (no confidence tags in the UI)
-        result_summary = execution_result[:500] if execution_result else ""
+        
+        # Append assistant response to history
+        if execution_result:
+             history.append({"role": "assistant", "content": execution_result})
+             redis_client.set(f"midas:conv:{conversation_id}", json.dumps(history), ex=86400)
 
         set_task_status(
             task_id,
             "done",
-            result=result_summary,
+            result=execution_result,  # NO MORE TRUNCATION
             output_path=output_path or "",
         )
         logger.info(f"[{task_id}] Task complete. Output: {output_path}")
-        return result_summary
+        return execution_result
 
     except Exception as exc:
         logger.error(f"[{task_id}] Graph execution failed: {exc}", exc_info=True)

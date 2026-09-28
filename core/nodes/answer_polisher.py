@@ -33,11 +33,11 @@ You are a professional report formatter for MRPL (Mangalore Refinery and Petroch
 Your job: take the raw output below and reformat it into clean, well-structured, human-readable text.
 
 Rules:
+- You must heavily format your output using GitHub Flavored Markdown.
 - Use markdown formatting: headers (##), bold (**), bullet points (-), tables (|), etc.
 - For mathematical formulas, wrap them in $$ on their own line for LaTeX rendering
 - Remove any Python artifacts, variable dumps, list representations, or debug output
-- If the output contains numbers/statistics, present them in a clean table
-- If the output is already clean text, just tidy the formatting slightly
+- If the output contains numbers/statistics, present them in a clean markdown table
 - Keep ALL the actual data and numbers — do not invent or change any values
 - Be concise and professional. No filler like "Here are the results"
 - If the raw output is an error message, just say what went wrong in plain English
@@ -77,9 +77,9 @@ def polish_answer(state: MidasState) -> MidasState:
         resp = client.chat(
             model=MODEL,
             messages=[
-                {"role": "user", "content": POLISHER_PROMPT.format(raw_output=raw[:2000])}
+                {"role": "user", "content": POLISHER_PROMPT.format(raw_output=raw[:6000])}
             ],
-            options={"temperature": 0.2, "num_predict": 1024},
+            options={"temperature": 0.2, "num_predict": 4096},
         )
 
         polished = resp["message"]["content"].strip()

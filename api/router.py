@@ -125,12 +125,19 @@ async def submit_task(
 
 
     queue_manager.enqueue(task_id, prompt, role, user="anonymous")
+    
+    conversation_id = form.get("conversation_id")
+    if not conversation_id or conversation_id == "undefined":
+        conversation_id = task_id
+        
+    # Also store conversation_id in the task metadata so the worker can retrieve it
+    queue_manager.redis_client.hset(f"midas:task:{task_id}", "conversation_id", conversation_id)
 
-    logger.info("Task %s queued for user %s (role=%s)", task_id, "anonymous", role)
+    logger.info("Task %s queued for user %s (role=%s, conv=%s)", task_id, "anonymous", role, conversation_id)
     return schemas.TaskResponse(
         task_id=task_id,
-        status="queued",
-        message="Task accepted and queued for processing.",
+        conversation_id=conversation_id,
+        status="queued"
     )
 
 
