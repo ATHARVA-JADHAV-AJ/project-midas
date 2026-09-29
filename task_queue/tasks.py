@@ -45,9 +45,9 @@ def run_agent_task(self, task_id: str, prompt: str) -> str:
 
     # Fetch conversation history
     import json
-    from task_queue.queue_manager import redis_client
+    from task_queue.queue_manager import _redis
     history = []
-    history_json = redis_client.get(f"midas:conv:{conversation_id}")
+    history_json = _redis.get(f"midas:conv:{conversation_id}")
     if history_json:
         history = json.loads(history_json)
         
@@ -68,7 +68,7 @@ def run_agent_task(self, task_id: str, prompt: str) -> str:
             _file_type = _file_match_simple.group(2)
 
     history.append({"role": "user", "content": clean_prompt})
-    redis_client.set(f"midas:conv:{conversation_id}", json.dumps(history), ex=86400) # 1 day TTL
+    _redis.set(f"midas:conv:{conversation_id}", json.dumps(history), ex=86400) # 1 day TTL
 
     initial_state: MidasState = {
         "task_id": task_id,
@@ -112,7 +112,7 @@ def run_agent_task(self, task_id: str, prompt: str) -> str:
         # Append assistant response to history
         if execution_result:
              history.append({"role": "assistant", "content": execution_result})
-             redis_client.set(f"midas:conv:{conversation_id}", json.dumps(history), ex=86400)
+             _redis.set(f"midas:conv:{conversation_id}", json.dumps(history), ex=86400)
 
         set_task_status(
             task_id,

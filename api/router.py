@@ -131,7 +131,7 @@ async def submit_task(
         conversation_id = task_id
         
     # Also store conversation_id in the task metadata so the worker can retrieve it
-    queue_manager.redis_client.hset(f"midas:task:{task_id}", "conversation_id", conversation_id)
+    queue_manager._redis.hset(f"midas:task:{task_id}", "conversation_id", conversation_id)
 
     logger.info("Task %s queued for user %s (role=%s, conv=%s)", task_id, "anonymous", role, conversation_id)
     return schemas.TaskResponse(
