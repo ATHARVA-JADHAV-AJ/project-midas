@@ -75,3 +75,17 @@ async def ensure_model_loaded(target_model: str, task_id: str = ""):
         await wait_for_unload()
     
     logger.info(f"{prefix}VRAM cleared. Target model {target_model} will load lazily on next request.")
+
+async def prewarm_model(target_model: str, task_id: str = ""):
+    """Force-load a model into VRAM by issuing a minimal generate request."""
+    prefix = f"[{task_id}] " if task_id else ""
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"{OLLAMA_BASE_URL}/api/generate",
+                json={"model": target_model, "prompt": "hi", "options": {"num_predict": 1}},
+                timeout=30
+            )
+        logger.info(f"{prefix}Pre-warmed model {target_model}")
+    except Exception as e:
+        logger.warning(f"{prefix}Pre-warm failed (model will load lazily): {e}")

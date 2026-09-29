@@ -23,7 +23,7 @@ MODEL = get_model_name("formatter", "llama3.2:latest")
 OLLAMA_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 CHAT_SYSTEM_PROMPT = (
-    "You are Midas Defense AI v5.0, an intelligent assistant deployed at "
+    "You are Midas Defense AI v7.0, an intelligent assistant deployed at "
     "MRPL (Mangalore Refinery and Petrochemicals Limited). "
     "You answer questions professionally, clearly, and concisely. "
     "You must heavily format your output using GitHub Flavored Markdown. "

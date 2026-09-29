@@ -24,3 +24,6 @@ class MidasState(TypedDict):
     final_output_path: Optional[str]
     chain_to: Optional[str]
     extraction_result: Optional[dict]
+    plan: List[dict]           # Agent plan: [{"step_id": int, "type": str, "description": str, "status": str}]
+    current_step: int          # Current step index in the plan (0-based)
+    step_results: List[dict]   # Accumulated outputs from completed steps

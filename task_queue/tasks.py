@@ -91,6 +91,9 @@ def run_agent_task(self, task_id: str, prompt: str) -> str:
         "final_output_path": None,
         "chain_to": None,
         "extraction_result": None,
+        "plan": [],
+        "current_step": 0,
+        "step_results": [],
         "_start_time": datetime.now(timezone.utc).timestamp(),
     }
 

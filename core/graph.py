@@ -1,22 +1,27 @@
-# Project Midas â€” LangGraph State Machine
+# Project Midas — LangGraph State Machine (v7.0 Agentic Loop)
 # Author: Atharva Kishor Jadhav (AJ)
 # ---------------------------------------------------------------
 """
-Defines the Project Midas agent graph using LangGraph's StateGraph.
+Defines the Project Midas v7.0 agent graph using LangGraph's StateGraph.
 
-Topology:
+v7.0 Topology — True Agentic Loop (Plan → Act → Observe → Iterate):
+
   [START]
-    â””â”€â”€ classify_intent
-          â”œâ”€â”€ (vision)   â†’ vision_extract  â†’ reason_and_code
-          â”œâ”€â”€ (math)     â†’ reason_and_code
-          â””â”€â”€ (document) â†’ rag_retrieve    â†’ reason_and_code
-                               â†“
-                         execute_code
-                               â”œâ”€â”€ success    â†’ ground_check â†’ format_output â†’ [END]
-                               â”œâ”€â”€ syntax/timeout (iteration < 3) â†’ reason_and_code
-                               â””â”€â”€ other / max_iterations â†’ fail_node â†’ [END]
+    └── classify_intent
+          ├── (chat)     → standard_chat → format_output → [END]
+          └── (vision/math/document) → agent_planner → agent_step_router
+                                          ↕ (loop)
+              ┌─ rag_search      → rag_retrieve → agent_observer
+              ├─ code_execute    → reason_and_code → execute_code → agent_observer
+              ├─ vision_extract  → vision_extract → agent_observer
+              └─ generate_doc    → draft_from_extraction → agent_observer
+                                                              ↓
+                                      ├── next_step → agent_step_router (loop back)
+                                      ├── done      → ground_check → polish → format → [END]
+                                      └── failed    → fail_node → [END]
 
-All state transitions are deterministic. No LLM output can select a graph edge.
+MAX_AGENT_STEPS = 5  (hard cap to prevent infinite loops)
+MAX_ITERATIONS  = 3  (code retry cap per step)
 """
 
 from datetime import datetime, timezone
@@ -30,6 +35,10 @@ from core.nodes.reasoner import reason_and_code, vision_extract, draft_from_extr
 from core.nodes.code_executor import execute_code
 from core.nodes.ground_check import check_groundedness
 from core.nodes.output_formatter import format_output
+from core.nodes.standard_chat import standard_chat
+from core.nodes.answer_polisher import polish_answer
+from core.nodes.agent_planner import agent_planner
+from core.nodes.agent_observer import agent_observer, route_after_observer, route_agent_step
 import logging
 
 logger = logging.getLogger(__name__)
@@ -37,46 +46,78 @@ logger = logging.getLogger(__name__)
 MAX_ITERATIONS = 3
 
 
-from core.nodes.standard_chat import standard_chat
-
-# ... later in the file ...
+# ── Routing Functions ────────────────────────────────────────────────
 
 def route_by_intent(state: MidasState) -> str:
-    """Route after classification based on resolved intent."""
+    """Route after classification. Chat bypasses the agentic loop."""
     intent = state.get("intent", "document")
-    if intent == "vision":
-        return "vision_extract"
-    elif intent == "math":
-        # Math tasks go straight to the reasoner â€” no RAG needed for pure computation
-        return "reason_and_code"
-    elif intent == "chat":
+    if intent == "chat":
         return "standard_chat"
-    else:
-        return "rag_retrieve"
+    # All other intents (vision, math, document) go through the agentic planner
+    return "agent_planner"
+
 
 def should_retry(state: MidasState) -> str:
     """
-    Decides what happens after code execution:
-      - No error â†’ proceed to groundedness check
-      - SyntaxError or TimeoutError, iteration < MAX_ITERATIONS â†’ loop back to reasoner
-      - Any other error, or max iterations reached â†’ fail
+    Decides what happens after code execution within a step:
+      - No error → proceed to observer (step complete)
+      - Retryable error, iteration < MAX → loop back to reasoner
+      - Max iterations or fatal error → route to observer with error state
     """
     error_type = state.get("error_type")
     iteration = state.get("iteration", 0)
 
     if error_type is None:
-        # Clean execution â€” advance
-        return "ground_check"
+        # Clean execution — advance to observer
+        return "agent_observer"
 
     if error_type in ("syntax", "timeout", "runtime", "file_type_mismatch") and iteration < MAX_ITERATIONS:
         logger.info(f"[{state['task_id']}] Retrying after {error_type} error (iteration {iteration}/{MAX_ITERATIONS})")
         return "reason_and_code"
 
-    # RuntimeError or exhausted retries
-    return "fail_node"
+    # Exhausted retries — still route to observer (it will decide to fail or continue)
+    return "agent_observer"
 
 
-# â”€â”€ Fail node â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+def route_after_vision(state: MidasState) -> str:
+    """After vision extraction, always route to observer (agentic loop)."""
+    return "agent_observer"
+
+
+# ── Agent Step Router ────────────────────────────────────────────────
+
+def agent_step_router_fn(state: MidasState) -> str:
+    """Routes to the correct action node based on the current plan step type."""
+    plan = state.get("plan", [])
+    current_step = state.get("current_step", 0)
+
+    if current_step >= len(plan):
+        return "ground_check"
+
+    step_type = plan[current_step].get("type", "code_execute")
+
+    type_map = {
+        "rag_search": "rag_retrieve",
+        "code_execute": "reason_and_code",
+        "vision_extract": "vision_extract",
+        "generate_document": "draft_from_extraction",
+    }
+
+    return type_map.get(step_type, "reason_and_code")
+
+
+def observer_route_fn(state: MidasState) -> str:
+    """Routes after the observer evaluates a completed step."""
+    result = route_after_observer(state)
+    if result == "next_step":
+        return "agent_step_router"
+    elif result == "done":
+        return "ground_check"
+    else:
+        return "fail_node"
+
+
+# ── Fail node ────────────────────────────────────────────────────────
 
 def fail_node(state: MidasState) -> MidasState:
     """Terminal failure node. Logs and packages the error for delivery."""
@@ -138,10 +179,7 @@ def fail_node(state: MidasState) -> MidasState:
     }
 
 
-def route_after_vision(state: MidasState) -> str:
-    if state.get("chain_to") == "draft_from_extraction":
-        return "draft_from_extraction"
-    return "format_output"
+# ── Checkpointer ─────────────────────────────────────────────────────
 
 from langgraph.checkpoint.sqlite import SqliteSaver
 import sqlite3
@@ -150,89 +188,101 @@ import os
 db_path = os.path.join(os.path.dirname(__file__), "..", "checkpoints.sqlite")
 conn = sqlite3.connect(db_path, check_same_thread=False)
 global_checkpointer = SqliteSaver(conn)
-# â”€â”€ Graph assembly â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+
+# ── Graph assembly ────────────────────────────────────────────────────
 
 def build_graph() -> StateGraph:
     graph = StateGraph(MidasState)
 
     # Register nodes
-    from core.nodes.render_flowchart import render_flowchart
-    from core.nodes.answer_polisher import polish_answer
     graph.add_node("classify_intent", classify_intent)
+    graph.add_node("standard_chat", standard_chat)
+    graph.add_node("agent_planner", agent_planner)
     graph.add_node("rag_retrieve", retrieve_context)
-    graph.add_node("vision_extract", vision_extract)  # Defined in reasoner.py
+    graph.add_node("vision_extract", vision_extract)
     graph.add_node("draft_from_extraction", draft_from_extraction_node)
     graph.add_node("reason_and_code", reason_and_code)
-    graph.add_node("render_flowchart", render_flowchart)
     graph.add_node("execute_code", execute_code)
+    graph.add_node("agent_observer", agent_observer)
     graph.add_node("ground_check", check_groundedness)
     graph.add_node("polish_answer", polish_answer)
     graph.add_node("format_output", format_output)
     graph.add_node("fail_node", fail_node)
-    graph.add_node("standard_chat", standard_chat)
 
     # Entry
     graph.set_entry_point("classify_intent")
 
-    # Intent routing
+    # ── Intent routing ─────────────────────────────────────────────
+    # Chat → direct response; everything else → agentic planner
     graph.add_conditional_edges(
         "classify_intent",
         route_by_intent,
         {
-            "vision_extract": "vision_extract",
-            "reason_and_code": "reason_and_code",
-            "rag_retrieve": "rag_retrieve",
             "standard_chat": "standard_chat",
+            "agent_planner": "agent_planner",
         },
     )
 
-    # RAG â†’ reasoner
-    graph.add_edge("rag_retrieve", "reason_and_code")
-    
-    # Vision extract â†’ draft or format
-    graph.add_conditional_edges(
-        "vision_extract",
-        route_after_vision,
-        {
-            "draft_from_extraction": "draft_from_extraction",
-            "format_output": "format_output"
-        }
-    )
-    graph.add_edge("draft_from_extraction", "ground_check")
-
-    def route_after_reasoner(state: MidasState) -> str:
-        if "flowchart" in state["prompt"].lower():
-            return "render_flowchart"
-        return "execute_code"
-
-    # Reasoner → executor or flowchart renderer
-    graph.add_conditional_edges(
-        "reason_and_code",
-        route_after_reasoner,
-        {
-            "execute_code": "execute_code",
-            "render_flowchart": "render_flowchart",
-        }
-    )
-    
-    # Flowchart rendering goes straight to output formatting
-    graph.add_edge("render_flowchart", "format_output")
-
-    # Standard chat bypasses RAG and sandbox, goes straight to output formatting
+    # Chat bypasses the agentic loop entirely
     graph.add_edge("standard_chat", "format_output")
 
-    # Execution routing â€” the only branching point after the reasoner
+    # ── Agentic Loop ───────────────────────────────────────────────
+    # Planner → step router (first step)
+    graph.add_conditional_edges(
+        "agent_planner",
+        agent_step_router_fn,
+        {
+            "rag_retrieve": "rag_retrieve",
+            "reason_and_code": "reason_and_code",
+            "vision_extract": "vision_extract",
+            "draft_from_extraction": "draft_from_extraction",
+            "ground_check": "ground_check",
+        },
+    )
+
+    # Action nodes → observer (or retry loop for code execution)
+    graph.add_edge("rag_retrieve", "agent_observer")
+
+    graph.add_edge("reason_and_code", "execute_code")
+
     graph.add_conditional_edges(
         "execute_code",
         should_retry,
         {
-            "ground_check": "ground_check",
+            "agent_observer": "agent_observer",
             "reason_and_code": "reason_and_code",
+        },
+    )
+
+    graph.add_conditional_edges(
+        "vision_extract",
+        route_after_vision,
+        {
+            "agent_observer": "agent_observer",
+        },
+    )
+
+    graph.add_edge("draft_from_extraction", "agent_observer")
+
+    # Observer → next step (loop), finalize, or fail
+    # We use a virtual "agent_step_router" node that re-evaluates and routes
+    graph.add_conditional_edges(
+        "agent_observer",
+        observer_route_fn,
+        {
+            "agent_step_router": "agent_planner",  # Re-enter planner to read next step
+            "ground_check": "ground_check",
             "fail_node": "fail_node",
         },
     )
 
-    # Success path: ground_check → polish_answer → format_output
+    # Note: We route "next_step" back to agent_planner, but since the plan is
+    # already created, agent_planner will detect an existing plan and act as a
+    # pass-through step router. We'll handle this by adding a lightweight
+    # "step_dispatch" node that simply reads the current step and routes.
+
+    # ── Success path ───────────────────────────────────────────────
     graph.add_edge("ground_check", "polish_answer")
     graph.add_edge("polish_answer", "format_output")
     graph.add_edge("format_output", END)
@@ -241,6 +291,5 @@ def build_graph() -> StateGraph:
     return graph.compile(checkpointer=global_checkpointer)
 
 
-# Module-level compiled graph â€” imported by queue/tasks.py
+# Module-level compiled graph — imported by task_queue/tasks.py
 MIDAS_GRAPH = build_graph()
-

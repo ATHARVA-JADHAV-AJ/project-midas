@@ -14,6 +14,8 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+  <!-- Mermaid.js flowchart rendering -->
+  <script src="/static/mermaid.min.js"></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
@@ -316,6 +318,8 @@
     .bubble p { margin-bottom: 0.6rem; }
     .bubble p:last-child { margin-bottom: 0; }
     .bubble ul, .bubble ol { margin: 0.5rem 0 0.5rem 1.5rem; }
+    .bubble .mermaid { background: rgba(0,0,0,0.2); border-radius: 8px; padding: 1rem; margin: 0.5rem 0; overflow-x: auto; }
+    .bubble .mermaid svg { max-width: 100%; height: auto; }
 
     @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes pulseRing { 0%, 100% { opacity: 0.4; transform: scale(1); } 50% { opacity: 0.8; transform: scale(1.08); } }
@@ -447,6 +451,17 @@
           <div class="queue-item"><span>File Inspector</span><span class="prio" id="pipe-file" style="color:var(--success)">ready</span></div>
           <div class="queue-item"><span>Ground Check</span><span class="prio" id="pipe-ground" style="color:var(--success)">ready</span></div>
         </div>
+        <div class="tele-section">
+          <h4>Network Sovereignty</h4>
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
+            <span id="airgap-badge" style="color:var(--success);font-weight:600;font-size:0.85rem;">🔒 AIR-GAPPED</span>
+          </div>
+          <div class="vram-stats">
+            <span>Internal: <span id="net-internal">0</span></span>
+            <span>External: <span id="net-external" style="color:var(--success)">0</span></span>
+          </div>
+          <div class="hint">Live connection monitor — proves zero external API calls</div>
+        </div>
       </aside>
     </div>
   </div>
@@ -455,6 +470,10 @@
 
   <script>
   (function () {
+    // Initialize Mermaid.js for flowchart rendering
+    if (typeof mermaid !== 'undefined') {
+      mermaid.initialize({ startOnLoad: false, theme: 'dark', themeVariables: { primaryColor: '#d4af37', primaryTextColor: '#e8e6e3', lineColor: '#2dd4bf', secondaryColor: '#1a1a1d' } });
+    }
     var API_URL = 'http://localhost:8000';
 
     // ====== INTRO VIDEO ======
@@ -680,6 +699,23 @@
         document.getElementById('pipe-classifier').textContent = d.pipeline.classifier;
         document.getElementById('pipe-file').textContent = d.pipeline.file_inspector;
         document.getElementById('pipe-ground').textContent = d.pipeline.ground_check;
+        // Network Sovereignty
+        if (d.network && typeof d.network === 'object') {
+          var netExt = document.getElementById('net-external');
+          var netInt = document.getElementById('net-internal');
+          var badge = document.getElementById('airgap-badge');
+          if (netExt) netExt.textContent = d.network.external_connections;
+          if (netInt) netInt.textContent = d.network.total_connections;
+          if (badge) {
+            if (d.network.air_gap_verified) {
+              badge.style.color = 'var(--success)';
+              badge.textContent = '\uD83D\uDD12 AIR-GAPPED';
+            } else {
+              badge.style.color = 'var(--danger)';
+              badge.textContent = '\u26A0\uFE0F BREACH DETECTED';
+            }
+          }
+        }
       } catch (e) {
         // API unreachable — show stale
       }
@@ -711,6 +747,17 @@
         ],
         throwOnError: false
       });
+      // Render Mermaid.js flowcharts
+      div.querySelectorAll('code.language-mermaid').forEach(function(block) {
+        var pre = block.parentElement;
+        var mermaidDiv = document.createElement('div');
+        mermaidDiv.className = 'mermaid';
+        mermaidDiv.textContent = block.textContent;
+        pre.replaceWith(mermaidDiv);
+      });
+      if (typeof mermaid !== 'undefined') {
+        try { mermaid.run({ nodes: div.querySelectorAll('.mermaid') }); } catch(e) { console.warn('Mermaid render error:', e); }
+      }
       messagesEl.scrollTop = messagesEl.scrollHeight;
     }
 

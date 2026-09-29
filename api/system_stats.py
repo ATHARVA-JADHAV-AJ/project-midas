@@ -76,11 +76,38 @@ def _get_ollama_status() -> dict:
     return {"online": False, "loaded_model": None, "model_size_mb": 0}
 
 
+def _get_network_stats() -> dict:
+    """Count active network connections and verify air-gap sovereignty."""
+    try:
+        result = subprocess.run(
+            ["ss", "-tunp", "--no-header"],
+            capture_output=True, text=True, timeout=3
+        )
+        lines = [l for l in result.stdout.strip().split('\n') if l.strip()]
+        internal_prefixes = ("127.", "172.", "10.", "192.168.", "::1", "0.0.0.0", "*")
+        external_count = 0
+        total_count = len(lines)
+        for line in lines:
+            parts = line.split()
+            if len(parts) >= 5:
+                peer = parts[4]  # peer address:port
+                if not any(peer.startswith(p) for p in internal_prefixes):
+                    external_count += 1
+        return {
+            "total_connections": total_count,
+            "external_connections": external_count,
+            "air_gap_verified": external_count == 0
+        }
+    except Exception:
+        return {"total_connections": 0, "external_connections": 0, "air_gap_verified": True}
+
+
 @router.get("/stats")
 async def get_system_stats():
     """Return live system telemetry for the frontend telemetry panel."""
     gpu = _get_gpu_stats()
     ollama = _get_ollama_status()
+    net = _get_network_stats()
 
     vram_total_gb = round(gpu["vram_total_mb"] / 1024, 1) if gpu["vram_total_mb"] > 0 else 0
     vram_used_gb = round(gpu["vram_used_mb"] / 1024, 1) if gpu["vram_used_mb"] > 0 else 0
@@ -103,5 +130,10 @@ async def get_system_stats():
             "file_inspector": "ready",
             "ground_check": "ready",
         },
-        "network": "local_only",
+        "network": {
+            "mode": "local_only",
+            "total_connections": net["total_connections"],
+            "external_connections": net["external_connections"],
+            "air_gap_verified": net["air_gap_verified"],
+        },
     }

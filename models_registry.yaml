@@ -8,9 +8,9 @@ models:
     vram_gb: 2.0
     used_for: ["answer_polishing"]
   vision:
-    name: "moondream:latest"
+    name: "qwen2-vl:2b"
     vram_gb: 2.5
-    used_for: ["VISION_EXTRACTION"]
+    used_for: ["VISION_EXTRACTION", "OCR", "TABLE_EXTRACTION"]
   embedding:
     name: "nomic-embed-text:latest"
     vram_gb: 0
